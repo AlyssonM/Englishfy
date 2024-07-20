@@ -1,0 +1,14 @@
+crewai
+crewai[tools]
+langchain-openai
+langchain-groq
+google-generativeai
+pyTelegramBotAPI
+deepgram-sdk
+ibm-watson>=7.0.0
+python-dotenv
+requests
+aiohttp
+websocket-client
+pydub
+emoji

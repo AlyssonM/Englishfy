@@ -1,0 +1,28 @@
+# Ignore the .env file and other git stuffs
+.env
+.dockerignore
+.gitignore
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+.botenv/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# Other unwanted files
+.DS_Store
+``
