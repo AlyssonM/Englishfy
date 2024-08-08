@@ -33,6 +33,24 @@ class Agents():
             max_iter=10,
             llm=self.llm, 
         )
+        
+    def assistant_agent(self) -> Agent:
+        return Agent(
+            role="Conversation Assistant",
+            goal="""
+                Assist and review the Instructor conversation responses in order to improve the interation.""",
+            backstory="""
+                The Conversation Assistant is a dedicated agent for conversational sessions. 
+                They have extensive knowledge for searching, review and relationship skills. 
+                Their goal is to help the instructor improve their communication 
+                in English by offering immediate quality review service.""",
+            expected_output="""
+                Aaccurate and helpful review string of the instructor response in a real-time conversation session.""",
+            verbose=self.verbose,
+            allow_delegation=self.allow_delegation,
+            tools=self.tools,
+            llm=self.llm, 
+        )
 
     
 

@@ -1,16 +1,31 @@
 from crewai import Crew, Process
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, CallbackQuery
 from agents.agents import Agents
-from tasks.tasks import InstructorTasks
+from tasks.tasks import InstructorTasks, AssistantTasks
 from tools.tools import TelegramTools
 from pydub import AudioSegment
 import json 
 import re 
 import emoji
 import google.generativeai as genai
+from langchain.tools import Tool
+from langchain_community.tools import DuckDuckGoSearchRun
+from PIL import Image
+import os
+#import torch
+#from TTS.api import TTS
+
+#device = "cuda" if torch.cuda.is_available() else "cpu"
+#tts = TTS("tts_models/en/ljspeech/tacotron2-DDC").to(device)
 
 history_users = {}
-
+search = DuckDuckGoSearchRun()
+search_tool = Tool(
+    name="search\_tool",
+    description="A search tool used to query DuckDuckGo for search results when trying to find information from the internet.",
+    func=search.run
+    )
+    
 # Função para criar um teclado inline
 def create_quiz_inline_keyboard(alt1, alt2, alt3, alt4, correct_alt):
     markup = InlineKeyboardMarkup(row_width=1)
@@ -62,7 +77,9 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
     category = ""
     agents = Agents([])
     Instructor_agent = agents.instructor_agent()
+    Assistant_agent = agents.assistant_agent()
     tasks = InstructorTasks(agent=Instructor_agent)
+    assist = AssistantTasks(agent= Assistant_agent)
 
     def update_state1(output):
         print('End of Quiz')
@@ -108,7 +125,7 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
                 bot.send_message(call.message.chat.id, "Correct answer!")
             else:
                 bot.send_message(call.message.chat.id, "Incorrect answer. Try again!")
-
+            bot.answer_callback_query(call.id)
             Instructor_task2 = tasks.dar_feedback(
                 tools=[TelegramTools(bot).user_send_message], 
                 user_id=call.from_user.id, 
@@ -128,13 +145,16 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
                         voice='en-US_MichaelV3Voice',
                         accept='audio/ogg'        
                     ).get_result().content)
-    
+
+            #tts.tts_to_file(text=Instructor_task2.output.raw, file_path="./feedback.wav")
+            # with open('./feedback.wav', "rb") as voice:
+            #     bot.send_voice(call.from_user.id, voice)
             #audio_synth.create_audio_file(Instructor_task2.output.raw, './feedback.mp3')
             #convert_mp3_to_ogg('./feedback.mp3', './feedback.ogg')
             with open('./feedback.ogg', "rb") as voice:
                 bot.send_voice(call.from_user.id, voice)
         # Notifica que a resposta foi processada
-        bot.answer_callback_query(call.id)
+        
     
          
     @bot.message_handler(content_types=['voice'])
@@ -147,11 +167,16 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
         
         audio_file = genai.upload_file(f'./user_voice.ogg',mime_type='audio/ogg')          
         response = gemini.send_message(['', audio_file])
-        print(response.text)
+        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+        else:
+            raise ValueError("No valid JSON found in the response text")
+        response_json = json.loads(json_str)
         # response_json = transcriber.transcribe_audio("./user_voice.ogg")
         # response = json.loads(response_json)
         # transcript = response["results"]["channels"][0]["alternatives"][0]["transcript"]
-        transcript = response.text
+        transcript = response_json['transcription']
         nonlocal conversation_status
         if conversation_status:
             new_message = {
@@ -159,39 +184,43 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
                 "content": transcript,
             }
             conversation_history["conversation_history"].append(new_message)
-            bot.reply_to(message, f"""I received your voice message: \n"{transcript}" """)
-            # Instructor_task3 = tasks.conversation(
-            #         tools=[TelegramTools(bot).user_send_message], 
+    
+            # Instructor_task3 = assist.conversation_assistant(
+            #         tools=[TelegramTools(bot).search], 
             #         user_id=message.chat.id, 
             #         context=conversation_history["conversation_history"], 
-            #         callback=update_state2)
+            #         callback=[])
             # crew = Crew(
-            #     agents=[Instructor_agent],
+            #     agents=[Assistant_agent],
             #     tasks=[Instructor_task3],
             #     verbose=False
             # )
             # result = crew.kickoff()
             # task_output = Instructor_task3.output
             # print(task_output.raw)
-            task_output = transcript
+           
+            #task_output = transcript
+            
             new_message = {
             "role": "Instructor",
-            "content": (task_output),
+            "content": response_json['output'],
             }
+            #conversation_history["conversation_history"][-1]["content"] = task_output.raw
             conversation_history["conversation_history"].append(new_message)
             #audio_synth.create_audio_file(remove_emojis(task_output), './conversation.mp3')
             #convert_mp3_to_ogg('./conversation.mp3', './conversation.ogg')
-            with open('./conversation.ogg', 'wb') as audio_file:
-                audio_file.write(
-                    IBMtts.synthesize(
-                        remove_emojis(task_output),
-                        voice='en-US_MichaelV3Voice',
-                        accept='audio/ogg'        
-                    ).get_result().content)
+            # with open('./conversation.ogg', 'wb') as audio_file:
+            #     audio_file.write(
+            #         IBMtts.synthesize(
+            #             remove_emojis(task_output),
+            #             voice='en-US_MichaelV3Voice',
+            #             accept='audio/ogg'        
+            #         ).get_result().content)
                 
-            with open('./conversation.ogg', "rb") as voice:
-                bot.send_voice(message.chat.id, voice)
-                
+            # with open('./conversation.ogg', "rb") as voice:
+            #     bot.send_voice(message.chat.id, voice)
+            #bot.reply_to(message, f"{response_json['output']}")
+            bot.reply_to(message, response_json['output'], parse_mode='markdown')
     
     # Definir comando para iniciar a conversação
     @bot.message_handler(commands=['conversation'])
@@ -204,7 +233,16 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
             response = gemini.send_message("""For the conversation section, please avoid adding timestamps to 
                                            the student's voice recordings. You will receive the audio and should 
                                            continue the dialogue naturally, as you would in a typical conversation 
-                                           session. Please respond without hesitation to what the student requests.""")
+                                           session. Please respond without hesitation to what the student requests.
+                                           Your response MUST be a json formatted string with the following format:
+                                           {
+                                               transcription: transcript,
+                                               output: response 
+                                           }
+                                           where transcript is the transcription content of the user audio (if empty, transcript = ''), 
+                                           and response is your naturally dialogue response.
+                                           DO NOT ADD ANY COMMENTS OR ANYTHING ELSE, JUST EXACTLY THE FORMAT ABOVE.""")
+            
             Instructor_task3 = tasks.conversation(
                     tools=[TelegramTools(bot).user_send_message], 
                     user_id=user_id, 
@@ -225,16 +263,17 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
             conversation_history["conversation_history"].append(new_message)
             #audio_synth.create_audio_file(task_output.raw, './conversation.mp3')
             #convert_mp3_to_ogg('./conversation.mp3', './conversation.ogg')
-            with open('./conversation.ogg', 'wb') as audio_file:
-                audio_file.write(
-                    IBMtts.synthesize(
-                        task_output.raw,
-                        voice='en-US_MichaelV3Voice',
-                        accept='audio/ogg'        
-                    ).get_result().content)
+            # with open('./conversation.ogg', 'wb') as audio_file:
+            #     audio_file.write(
+            #         IBMtts.synthesize(
+            #             task_output.raw,
+            #             voice='en-US_MichaelV3Voice',
+            #             accept='audio/ogg'        
+            #         ).get_result().content)
                 
-            with open('./conversation.ogg', "rb") as voice:
-                bot.send_voice(user_id, voice)
+            # with open('./conversation.ogg', "rb") as voice:
+            #     bot.send_voice(user_id, voice)
+            #bot.send_message(user_id, task_output.raw, parse_mode="Markdown")
         
     # Definir comando para iniciar o quiz
     @bot.message_handler(commands=['startquiz'])
@@ -253,7 +292,7 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
         
     def send_quiz(user_id, level, category):
         Instructor_task1 = tasks.quiz(
-                tools=[TelegramTools(bot).quiz], 
+                tools=[TelegramTools(bot).quiz, search_tool], 
                 user_id=user_id, 
                 context=quizzes, 
                 level=level,
@@ -297,3 +336,36 @@ def setup_handlers(bot, transcriber, audio_synth, gemini, IBMtts):
                 bot.send_message(chat_id, response.text)
             except Exception as inst:
                 print(inst)    
+
+    
+    # Manipulador de fotos
+    @bot.message_handler(content_types=['photo'])
+    def handle_photo(message):
+        chat_id = message.chat.id
+        file_id = message.photo[-1].file_id # Pega a foto de maior resolução
+        text = message.caption 
+
+        file_info = bot.get_file(file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+
+        with open('./temp.jpg', 'wb') as new_file:
+            new_file.write(downloaded_file)
+
+        image = Image.open('./temp.jpg')
+        response = gemini.send_message([text, image])
+        json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+        else:
+            raise ValueError("No valid JSON found in the response text")
+        response_json = json.loads(json_str)
+        output = response_json['output']
+        try:
+            bot.send_message(chat_id, output, parse_mode='markdown')
+        except:
+            try:
+                bot.send_message(chat_id, output)
+            except Exception as inst:
+                print(inst)   
+
+        os.remove('./temp.jpg')

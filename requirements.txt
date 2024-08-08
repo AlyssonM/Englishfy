@@ -4,6 +4,7 @@ langchain-openai
 langchain-groq
 google-generativeai
 pyTelegramBotAPI
+python-telegram-bot
 deepgram-sdk
 ibm-watson>=7.0.0
 python-dotenv
@@ -12,3 +13,5 @@ aiohttp
 websocket-client
 pydub
 emoji
+duckduckgo-search
+pillow
