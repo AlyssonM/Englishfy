@@ -2,6 +2,7 @@
 #from telebot import apihelper
 from telegram.ext import Application
 from telegram import Update
+from telegram.error import TimedOut, NetworkError, RetryAfter
 from os import environ
 from dotenv import load_dotenv
 from agents.crewai_telemetry import *
@@ -66,9 +67,31 @@ disable_crewai_telemetry()
 if __name__ == "__main__":
     #bot.infinity_polling(timeout=10, long_polling_timeout=5)
     # Create the Application and pass it your bot's token.
-    application = Application.builder().token(environ.get("BOT_TOKEN3")).build()
+    application = Application.builder().token(environ.get("BOT_TOKEN")).build()
     telegram_handlers_v2.setup_handlers(application, GeminiFactory(), IBMtts)
     # Run the bot until the user presses Ctrl-C
- 
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    while True:
+        try:
+            application.run_polling(
+                allowed_updates=Update.ALL_TYPES, 
+                read_timeout=30, 
+                write_timeout=30, 
+                connect_timeout=30
+            )
+        except TimedOut:
+            # Lidar com o timeout especificamente
+            print("Timeout occurred, attempting to continue...")
+        except RetryAfter as e:
+            # Lidar com limitações de taxa e Retry-After
+            print(f"Rate limits hit, sleeping for {e.retry_after} seconds")
+            time.sleep(e.retry_after)
+        except NetworkError:
+            # Tratar erros de rede genéricos
+            print("Network error occurred, attempting to restart polling...")
+            time.sleep(5)
+        except Exception as e:
+            # Capturar qualquer outra exceção
+            print(f"Unexpected error: {e}. Restarting polling...")
+            time.sleep(5)
+            
     

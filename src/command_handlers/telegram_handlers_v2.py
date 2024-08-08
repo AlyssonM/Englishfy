@@ -57,7 +57,11 @@ def setup_handlers(app, gemini_factory, IBMtts):
         }
         await update.message.reply_text("API key configured successfully. Let's start!")
         await update.message.delete()
-        
+    
+    async def fallback(update: Update, context: CallbackContext):
+        await update.message.reply_text("Workflow error. Try again....")
+        return ConversationHandler.END  # ou QUIZ_CATEGORY para reiniciar o quiz
+   
     async def cancel(update: Update, context: CallbackContext) -> int:
         user_id = update.effective_user.id
         await context.bot.send_message(chat_id=user_id, text="End of conversation.")
@@ -280,7 +284,7 @@ def setup_handlers(app, gemini_factory, IBMtts):
         user_id = update.effective_user.id
         if user_id not in user_sessions:
             await context.bot.send_message(user_id, "Please, configure your API key with the command /set_api.")
-            return QUIZ_CATEGORY
+            return ConversationHandler.END
         session = user_sessions[user_id]
         query = update.callback_query
         await query.answer()
@@ -322,6 +326,7 @@ def setup_handlers(app, gemini_factory, IBMtts):
         # Decide what to do next after an answer is given
         return ConversationHandler.END  # Optionally, continue the quiz or end the conversation
 
+
     app.add_handler(ConversationHandler(
         entry_points=[
             CommandHandler("start", start_bot),
@@ -333,10 +338,13 @@ def setup_handlers(app, gemini_factory, IBMtts):
         states={
             QUIZ_CATEGORY: [CallbackQueryHandler(quiz_category)],
             QUIZ_LEVEL: [CallbackQueryHandler(quiz_level)],
-            CONVERSATION: [MessageHandler(filters.VOICE | filters.TEXT, handle_conversation)],
+            CONVERSATION: [MessageHandler(filters.VOICE | filters.TEXT & ~filters.COMMAND, handle_conversation)],
             QUIZ_QUESTION: [CallbackQueryHandler(quiz_answer)]
         },
-        fallbacks=[]
+        fallbacks=[
+            CommandHandler('cancel', cancel), 
+            MessageHandler(filters.ALL, fallback)
+        ]
     ))
     
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
