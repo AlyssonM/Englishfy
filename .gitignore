@@ -170,3 +170,7 @@ cython_debug/
 
 # Output files
 */outputs/
+
+# Audio Files
+*.ogg
+*.wav
