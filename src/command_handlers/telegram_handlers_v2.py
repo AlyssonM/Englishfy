@@ -76,7 +76,7 @@ def setup_handlers(app, gemini_factory, IBMtts):
         gemini = session["gemini"]
         photo_file = await update.message.photo[-1].get_file()
         photo_path = f'./temp_{user_id}.jpg'
-        await photo_file.download(custom_path=photo_path)
+        await photo_file.download_to_drive(custom_path=photo_path)
         text = update.message.caption if update.message.caption else "" 
         image = Image.open(photo_path)
         response = gemini.send_message([text, image])  # Simulação de uma função de processamento
