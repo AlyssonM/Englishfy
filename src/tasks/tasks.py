@@ -34,7 +34,7 @@ class InstructorTasks:
         return Task(
             description=f"""Provide feedback to the student in the Telegram chat regarding 
                         the responses and performance in the activity: {context}.""",
-            expected_output="""Give constructive feedback, indicating if the answer was correct ('user_alt' = 'answer') and if it was incorrect, explain why. 
+            expected_output="""Give constructive feedback, indicating if the answer was correct ('user_alt' = 'answer') and if it was incorrect, explain briefly why. 
                             If referencing the selected or correct alternative, use the content from the field. 
                             SEND ONLY THE FEEDBACK ONCE, NOTHING ELSE.""", #Use notação markdown e emojis para engajar
             tools=tools,

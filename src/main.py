@@ -1,6 +1,7 @@
 #from telebot import TeleBot
 #from telebot import apihelper
 from telegram.ext import Application
+from telegram.ext import ApplicationBuilder
 from telegram import Update
 from telegram.error import TimedOut, NetworkError, RetryAfter
 from os import environ
@@ -67,17 +68,19 @@ disable_crewai_telemetry()
 if __name__ == "__main__":
     #bot.infinity_polling(timeout=10, long_polling_timeout=5)
     # Create the Application and pass it your bot's token.
-    application = Application.builder().token(environ.get("BOT_TOKEN")).build()
-    telegram_handlers_v2.setup_handlers(application, GeminiFactory(), IBMtts)
+    application = (
+        ApplicationBuilder()
+        .token(environ.get("BOT_TOKEN"))
+        .get_updates_read_timeout(15)
+        .get_updates_write_timeout(15)
+        .get_updates_connect_timeout(30)
+        .build()
+    )
+    telegram_handlers_v2.setup_handlers(application, IBMtts)
     # Run the bot until the user presses Ctrl-C
     while True:
         try:
-            application.run_polling(
-                allowed_updates=Update.ALL_TYPES, 
-                read_timeout=30, 
-                write_timeout=30, 
-                connect_timeout=30
-            )
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
         except TimedOut:
             # Lidar com o timeout especificamente
             print("Timeout occurred, attempting to continue...")

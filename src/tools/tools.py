@@ -2,13 +2,13 @@
 #from langchain.agents import load_tools
 from langchain_community.tools import DuckDuckGoSearchRun
 from crewai_tools import tool
-from telebot import TeleBot
+#from telebot import TeleBot
 from os import environ
 from dotenv import load_dotenv
 
 load_dotenv()
 
-bot = TeleBot(environ.get("BOT_TOKEN2"))
+#bot = TeleBot(environ.get("BOT_TOKEN2"))
 
 
 class TelegramTools:
